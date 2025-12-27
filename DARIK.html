@@ -1,0 +1,243 @@
+<meta name='viewport' content='width=device-width, initial-scale=1'/><!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PNG Game</title>
+
+<!-- ===================== CSS ===================== -->
+<style>
+body{
+  margin:0;
+  font-family:Arial, sans-serif;
+  background:linear-gradient(120deg,#ff9a9e,#fad0c4,#a18cd1);
+  background-size:400% 400%;
+  animation:bgMove 12s infinite;
+  color:#fff;
+  text-align:center;
+}
+
+@keyframes bgMove{
+  0%{background-position:0% 50%}
+  50%{background-position:100% 50%}
+  100%{background-position:0% 50%}
+}
+
+nav{
+  background:#00000066;
+  padding:10px;
+}
+nav button{
+  padding:10px;
+  margin:5px;
+  border:none;
+  border-radius:8px;
+  font-weight:bold;
+  cursor:pointer;
+}
+
+.page{ display:none; padding:20px; }
+
+input,select,button{
+  padding:12px;
+  font-size:16px;
+  border-radius:10px;
+  border:none;
+  margin:6px;
+}
+
+button{
+  background:#ff6f61;
+  color:white;
+}
+
+button:hover{ transform:scale(1.1); }
+
+.loading{
+  display:none;
+  font-size:26px;
+  letter-spacing:6px;
+  animation:bounce 1s infinite;
+}
+
+@keyframes bounce{
+  0%{transform:translateY(0)}
+  50%{transform:translateY(-12px)}
+  100%{transform:translateY(0)}
+}
+
+#history{
+  max-width:360px;
+  margin:20px auto;
+  text-align:left;
+}
+
+.correct{ color:#00ff9c; font-weight:bold; }
+</style>
+</head>
+
+<body>
+
+<!-- ===================== NAVIGATION ===================== -->
+<nav>
+  <button onclick="showPage('home')">Home</button>
+  <button onclick="showPage('solo')">Solo 🤖</button>
+  <button onclick="showPage('multi')">Multiplayer 👥</button>
+  <button onclick="showPage('about')">About ℹ️</button>
+</nav>
+
+<!-- ===================== HOME ===================== -->
+<div id="home" class="page">
+  <h1>PNG Game 🎮</h1>
+  <p>Position • Number • Guess</p>
+</div>
+
+<!-- ===================== SOLO ===================== -->
+<div id="solo" class="page">
+  <h2>Solo Mode 🤖</h2>
+
+  <select id="level">
+    <option value="">Select Difficulty</option>
+    <option value="easy">Easy (3 digits)</option>
+    <option value="medium">Medium (4 digits)</option>
+    <option value="hard">Hard (5 digits)</option>
+  </select>
+
+  <br>
+  <button onclick="startSolo()">Start Game</button>
+
+  <br><br>
+  <input id="guess" placeholder="Enter guess">
+  <button id="guessBtn" onclick="play()" disabled>GUESS</button>
+
+  <div class="loading" id="loading">D D D</div>
+  <div id="history"></div>
+</div>
+
+<!-- ===================== MULTIPLAYER ===================== -->
+<div id="multi" class="page">
+  <h2>Multiplayer 👥</h2>
+  <p>Online play with friends</p>
+
+  <input id="roomId" placeholder="Room ID">
+  <br>
+  <button onclick="createRoom()">Create Room</button>
+  <button onclick="joinRoom()">Join Room</button>
+
+  <p id="multiStatus">Firebase backend connected ✔</p>
+</div>
+
+<!-- ===================== ABOUT ===================== -->
+<div id="about" class="page">
+  <h2>About Game</h2>
+  <p>Guess the hidden number using logic.</p>
+</div>
+
+<!-- ===================== SOUND FILES ===================== -->
+<!-- 🔊 ADD MP3 FILES HERE -->
+<audio id="correctSound" src="correct.mp3"></audio>
+<audio id="wrongSound" src="wrong.mp3"></audio>
+
+<!-- ===================== FIREBASE ===================== -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<script>
+// 🔥 REPLACE WITH YOUR FIREBASE DETAILS
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "PROJECT.firebaseapp.com",
+  databaseURL: "https://PROJECT.firebaseio.com",
+  projectId: "PROJECT",
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// ===================== NAV =====================
+function showPage(id){
+  document.querySelectorAll('.page').forEach(p=>p.style.display='none');
+  document.getElementById(id).style.display='block';
+}
+showPage('home');
+
+// ===================== SOLO GAME =====================
+let secret="";
+let digits=4;
+
+function generateNumber(len){
+  let arr=[];
+  while(arr.length<len){
+    let n=Math.floor(Math.random()*9)+1;
+    if(!arr.includes(n)) arr.push(n);
+  }
+  return arr.join('');
+}
+
+function startSolo(){
+  document.getElementById("history").innerHTML="";
+  let lvl=document.getElementById("level").value;
+  if(!lvl){ alert("Select difficulty"); return; }
+
+  if(lvl==="easy") digits=3;
+  if(lvl==="medium") digits=4;
+  if(lvl==="hard") digits=5;
+
+  secret=generateNumber(digits);
+  console.log("SECRET:",secret); // for testing
+
+  document.getElementById("guessBtn").disabled=false;
+}
+
+function play(){
+  let guess=document.getElementById("guess").value;
+  if(guess.length!==digits){ alert("Wrong length"); return; }
+
+  let loading=document.getElementById("loading");
+  loading.style.display="block";
+
+  setTimeout(()=>{
+    loading.style.display="none";
+
+    let number=0, position=0;
+    for(let i=0;i<digits;i++){
+      if(secret.includes(guess[i])) number++;
+      if(secret[i]===guess[i]) position++;
+    }
+
+    let p=document.createElement("p");
+
+    if(position===digits){
+      document.getElementById("correctSound").play();
+      p.innerHTML=`🎉 <span class="correct">${guess}</span> → WIN`;
+      setTimeout(()=>{ startSolo(); },1000);
+    }else{
+      document.getElementById("wrongSound").play();
+      p.innerHTML=`🤔 ${guess} → Number:${number}, Position:${position}`;
+    }
+
+    document.getElementById("history").prepend(p);
+    document.getElementById("guess").value="";
+  },1500);
+}
+
+// ===================== MULTIPLAYER (BASE) =====================
+function createRoom(){
+  let id=Math.random().toString(36).substring(2,7);
+  document.getElementById("roomId").value=id;
+  db.ref("rooms/"+id).set({status:"waiting"});
+}
+
+function joinRoom(){
+  let id=document.getElementById("roomId").value;
+  db.ref("rooms/"+id).once("value",snap=>{
+    if(snap.exists()){
+      document.getElementById("multiStatus").innerText="Joined room "+id;
+    }else{
+      alert("Room not found");
+    }
+  });
+}
+</script>
+
+</body>
+</html>
